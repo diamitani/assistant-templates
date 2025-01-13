@@ -1,0 +1,95 @@
+# Template for Creating a Custom Assistant with OpenAI Assistants API
+# This script includes the setup for dependencies, APIs, functions, and a user chat interface.
+
+# Step 1: Install Dependencies
+# Ensure the necessary dependencies are installed.
+# Run this command in your terminal:
+# pip install openai flask
+
+import os
+from flask import Flask, request, jsonify
+import openai
+
+# Step 2: Define Configuration and Setup
+# Replace with your OpenAI API key or set it as an environment variable.
+openai.api_key = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+
+# Template function for loading system instructions dynamically
+def load_system_instructions(file_path):
+    """Load system instructions from a file."""
+    try:
+        with open(file_path, 'r') as file:
+            return file.read()
+    except FileNotFoundError:
+        print(f"Error: File {file_path} not found.")
+        return None
+
+# Flask App Initialization
+app = Flask(__name__)
+
+# Step 3: Define the Custom Assistant
+# Use this function to define how the assistant should behave.
+def create_assistant_message(system_instructions, user_message, assistant_id="default_assistant"):
+    """Generate a response from the assistant based on user input."""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_instructions},
+                {"role": "user", "content": user_message}
+            ],
+            user=assistant_id
+        )
+        return response["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"Error: {e}"
+
+# Step 4: Create API Routes for Interaction
+@app.route('/chat', methods=['POST'])
+def chat():
+    """API endpoint to interact with the assistant."""
+    try:
+        data = request.get_json()
+        user_message = data.get("message")
+        system_instructions = data.get("system_instructions")
+        assistant_id = data.get("assistant_id", "default_assistant")
+
+        if not user_message or not system_instructions:
+            return jsonify({"error": "Both 'message' and 'system_instructions' are required."}), 400
+
+        assistant_response = create_assistant_message(system_instructions, user_message, assistant_id)
+
+        return jsonify({"response": assistant_response})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Step 5: User Interface for Testing
+@app.route('/', methods=['GET'])
+def home():
+    """Simple home page to test the assistant."""
+    return '''
+    <html>
+        <body>
+            <h1>Custom Assistant Chat Interface</h1>
+            <form action="/chat" method="post">
+                <label for="system_instructions">System Instructions:</label><br>
+                <textarea name="system_instructions" rows="4" cols="50"></textarea><br><br>
+                <label for="message">Your Message:</label><br>
+                <input type="text" name="message" /><br><br>
+                <button type="submit">Send</button>
+            </form>
+        </body>
+    </html>
+    '''
+
+# Step 6: Run the Application
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+# Instructions to Use the Template:
+# 1. Replace "your-openai-api-key" with your actual OpenAI API key or set it as an environment variable.
+# 2. Save this script as `assistant_app.py`.
+# 3. Run the script: `python assistant_app.py`.
+# 4. Access the chat interface via http://localhost:5000 in your browser.
+# 5. Use the `/chat` API endpoint to interact programmatically by sending POST requests.
