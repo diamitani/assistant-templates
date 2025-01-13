@@ -1,0 +1,87 @@
+import os
+from flask import Flask, request, jsonify, send_from_directory
+import openai
+from flask_cors import CORS
+
+# Flask App Initialization
+app = Flask(__name__, static_folder="/mnt/data/c-4221-main/c-4221-main")
+CORS(app)
+
+# Step 1: Define Configuration and Setup
+openai.api_key = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+
+def load_system_instructions(file_path):
+    """Load system instructions from a file."""
+    try:
+        with open(file_path, 'r') as file:
+            return file.read()
+    except FileNotFoundError:
+        print(f"Error: File {file_path} not found.")
+        return None
+
+# Step 2: Define the Assistant's Core Functionality
+def create_assistant_message(system_instructions, user_message, assistant_id="default_assistant"):
+    """Generate a response from the assistant based on user input."""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_instructions},
+                {"role": "user", "content": user_message}
+            ],
+            user=assistant_id
+        )
+        return response["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"Error: {e}"
+
+# Step 3: API Routes
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """API endpoint to interact with the assistant."""
+    try:
+        data = request.get_json()
+        user_message = data.get("message")
+        system_instructions = data.get("system_instructions")
+        assistant_id = data.get("assistant_id", "default_assistant")
+
+        if not user_message or not system_instructions:
+            return jsonify({"error": "Both 'message' and 'system_instructions' are required."}), 400
+
+        assistant_response = create_assistant_message(system_instructions, user_message, assistant_id)
+
+        return jsonify({"response": assistant_response})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/upload_instructions', methods=['POST'])
+def upload_instructions():
+    """Endpoint to upload and save system instructions."""
+    try:
+        file = request.files['file']
+        save_path = os.path.join("/mnt/data/c-4221-main/uploads", file.filename)
+        file.save(save_path)
+        return jsonify({"message": f"File saved at {save_path}"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Serve the React Frontend
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    """Serve the frontend dashboard."""
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
+
+# Step 4: Run the Application
+if __name__ == '__main__':
+    uploads_dir = "/mnt/data/c-4221-main/uploads"
+    if not os.path.exists(uploads_dir):
+        os.makedirs(uploads_dir)
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+# Updated Frontend:
+# Modify index.html and main.tsx to include a dynamic dashboard for user interactions.
